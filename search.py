@@ -7,7 +7,6 @@ load_dotenv()
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-1.5-pro-latest")  # or your preferred version
 
-
 def search_with_gemini(user_input: str) -> str:
     try:
         response = model.generate_content(
