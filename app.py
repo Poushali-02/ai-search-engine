@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, jsonify
 import sqlite3
-import os
 from dotenv import load_dotenv
 from search import search_with_gemini
 
@@ -34,14 +33,17 @@ _init_db()
 
 @app.route("/")
 def main():
-    return render_template("index.html")
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT user_input, bot_response FROM chat_history ORDER BY timestamp ASC")
+    history = [{"user_input": row[0], "bot_response": row[1]} for row in c.fetchall()]
+    conn.close()
+    return render_template("index.html", history=history)
 
-@app.route('/ask', methods=['POST'])
+@app.route('/search', methods=['POST'])
 def ask():
     data = request.get_json()
     user_input = data.get('user_input')
-    if not user_input:
-        return jsonify({"error": "No input provided"}), 400
     response = search_with_gemini(user_input)
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
