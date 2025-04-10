@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI SEARCH ENGINE</title>
+    <link rel="stylesheet" href="{{url_for('static', filename='style.css')}}">
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Gemini AI Search</h1>
+        
+        <div id="chat-box">
+          {% for message in history %}
+            <div class="message user"><strong>You:</strong> {{ message.user_input }}</div>
+            <div class="message bot"><strong>Gemini:</strong> {{ message.response }}</div>
+          {% endfor %}
+        </div>
+    
+        <form id="search-form">
+          <input type="text" id="user_input" name="user_input" placeholder="Ask me anything..." required>
+          <button type="submit">Search</button>
+        </form>
+    
+        <div id="response-box"></div>
+      </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
