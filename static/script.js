@@ -1,46 +1,61 @@
-function parseMarkdown(text) {
+function parseMarkdownToHTML(text) {
   return text
-    // Escape HTML special characters
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-
-    // Headings
-    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-
-    // Bold
-    .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
-
-    // Italic (after bold to prevent conflict)
-    .replace(/\*(.*?)\*/gim, '<em>$1</em>')
-
-    // Inline code
-    .replace(/`([^`]+)`/gim, '<code>$1</code>')
-
-    // Line breaks
-    .replace(/\n/g, '<br />');
+    .replace(/^### (.*$)/gim, "<h3>$1</h3>")
+    .replace(/^## (.*$)/gim, "<h2>$1</h2>")
+    .replace(/^# (.*$)/gim, "<h1>$1</h1>")
+    .replace(/\*\*(.*?)\*\*/gim, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/gim, "<em>$1</em>")
+    .replace(/`([^`]+)`/gim, "<code>$1</code>")
+    .replace(/\n/g, "<br />");
 }
 
-// Load typing sound
-const typingAudio = new Audio("https://www.soundjay.com/mechanical/typewriter-key-2.mp3");
+function typeEffect(element, text, speed = 20, callback) {
+  let i = 0;
+  const cursor = '<span class="cursor">|</span>';
+  element.innerHTML = "";
+
+  function typeChar() {
+    if (i < text.length) {
+      element.innerHTML = text.slice(0, i + 1) + cursor;
+      i++;
+      scrollToBottom(); // Scroll during typing
+      setTimeout(typeChar, speed);
+    } else {
+      element.innerHTML = text; // Final text without cursor
+      if (callback) callback();
+    }
+  }
+
+  typeChar();
+}
+
+function scrollToBottom() {
+  const chatBox = document.getElementById("chat-box");
+  chatBox.scrollTo({
+    top: chatBox.scrollHeight,
+    behavior: "smooth"
+  });
+}
 
 document.getElementById("search-form").addEventListener("submit", async function (e) {
   e.preventDefault();
 
-  const userInput = document.getElementById("user_input").value.trim();
+  const userInputElem = document.getElementById("user_input");
+  const userInput = userInputElem.value.trim();
   if (!userInput) return;
 
   const chatBox = document.getElementById("chat-box");
 
-  const userMessage = document.createElement("div");
-  userMessage.className = "message user";
-  userMessage.innerHTML = `<div class="bubble"><strong>You:</strong> ${userInput}</div>`;
-  chatBox.appendChild(userMessage);
-  chatBox.scrollTop = chatBox.scrollHeight;
-
-  document.getElementById("user_input").value = "";
+  chatBox.insertAdjacentHTML("beforeend", `
+    <div class="message user">
+      <div class="bubble"><strong>You:</strong> ${userInput}</div>
+    </div>
+  `);
+  scrollToBottom();
+  userInputElem.value = "";
 
   const botMessage = document.createElement("div");
   botMessage.className = "message bot";
@@ -49,38 +64,25 @@ document.getElementById("search-form").addEventListener("submit", async function
   botBubble.innerHTML = `<em>Thinking...</em>`;
   botMessage.appendChild(botBubble);
   chatBox.appendChild(botMessage);
-  chatBox.scrollTop = chatBox.scrollHeight;
+  scrollToBottom();
 
   try {
     const res = await fetch("/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_input: userInput })
+      body: JSON.stringify({ user_input: userInput }),
     });
 
     const data = await res.json();
-    const parsedText = parseMarkdown(data.response || "Sorry, I couldn't respond.");
+    const parsedText = parseMarkdownToHTML(data.response || "Sorry, I couldn't respond.");
+    botBubble.classList.remove("typing");
 
-    // Typewriter effect with typing sound
-    let i = 0;
-    botBubble.innerHTML = "";
-    botBubble.classList.add("typing");
-    const typeChar = () => {
-      if (i < parsedText.length) {
-        botBubble.innerHTML += parsedText.charAt(i);
-        typingAudio.pause();
-        typingAudio.currentTime = 0;
-        typingAudio.play().catch(() => {});
-        i++;
-        setTimeout(typeChar, 10); // speed
-      } else {
-        botBubble.classList.remove("typing");
-      }
-    };
-    typeChar();
-
+    typeEffect(botBubble, parsedText, 20); // live typing
   } catch (err) {
-    botBubble.innerHTML = `<div class="bubble"><strong>Error:</strong> Could not reach server.</div>`;
+    botBubble.innerHTML = `<div class="bubble error"><strong>Error:</strong> Server issue or timeout.</div>`;
+    botBubble.classList.remove("typing");
     console.error("Fetch error:", err);
   }
+
+  scrollToBottom();
 });
