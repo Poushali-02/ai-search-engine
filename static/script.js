@@ -61,7 +61,7 @@ document.getElementById("search-form").addEventListener("submit", async function
   botMessage.className = "message bot";
   const botBubble = document.createElement("div");
   botBubble.className = "bubble typing";
-  botBubble.innerHTML = `<em>Thinking...</em>`;
+  botBubble.innerHTML = `<em>Thinking<span class="dots"></span></em>`;
   botMessage.appendChild(botBubble);
   chatBox.appendChild(botMessage);
   scrollToBottom();
