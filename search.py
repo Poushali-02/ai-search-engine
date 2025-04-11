@@ -14,7 +14,45 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 
-# Optional: randomized follow-up prompts for natural conversation
+# --- Sentiment & Tone Detection ---
+def detect_sentiment(text: str) -> str:
+    lowered = text.lower()
+    if any(word in lowered for word in ["sad", "depressed", "tired", "stressed", "lonely"]):
+        return "sad"
+    elif any(word in lowered for word in ["happy", "excited", "great", "fun", "love"]):
+        return "happy"
+    elif any(word in lowered for word in ["angry", "frustrated", "annoyed", "upset"]):
+        return "angry"
+    return "neutral"
+
+def get_tone(sentiment: str) -> str:
+    return {
+        "sad": "empathetic and kind",
+        "happy": "excited and cheerful",
+        "angry": "calm and understanding",
+        "neutral": "friendly and informative"
+    }.get(sentiment, "friendly")
+
+# --- Greeting & Side Notes ---
+GREETING_VARIANTS = [
+    "Hey there! 😊",
+    "Hi! What’s on your mind today?",
+    "Hello! Ready to explore something new?",
+    "Yo! Got a question for me?",
+    "Hey! Curious about something?"
+    "Hi there! What can I help you with?",
+    "Welcome! What’s up?",
+]
+
+SIDE_NOTES = [
+    "By the way, you asked a great question!",
+    "Fun fact: this comes up a lot in interesting discussions!",
+    "You're diving into a pretty cool topic.",
+    "People don’t ask this enough — well done.",
+    "This is one of those questions I love getting!",
+    "I genuinely appreciate your quriosity!"
+]
+
 FOLLOW_UP_QUESTIONS = {
     "explore": [
         "Would you like to explore this further?",
@@ -51,10 +89,15 @@ FOLLOW_UP_QUESTIONS = {
     "style_variation": [
         "Want to hear the quick version and then the in-depth one?",
         "Would you prefer a comparison to something familiar?",
+        "Want me to explain it like a story?",
+        "Would you like a more casual or formal explanation?",
     ],
     "friendly": [
         "Want to keep chatting about this?",
         "Would you like a fun fact connected to this?",
+        "Having fun? Want more of this?",
+        "This is exciting right? Want to know more?",
+        "Are you loving the conversation so far?"
     ]
 }
 
@@ -69,7 +112,11 @@ trigger_keywords = [
     "what does it mean", "meaning of", "beginner", "from scratch", "starting from", "what do you mean",
     "deeper", "technical", "can you describe", "what happens when", "how does it work"
 ]
-
+FOLLOW_UP_RESPONSES = [
+            "yes", "please explain", "go deeper", "elaborate", "sure", "of course", "continue",
+            "more info", "keep going", "i’m interested", "yes, please", "want to learn",
+            "do explain", "want to know more", "tell me more", "please do", "what else"
+        ]
 def needs_deep_answer(user_input: str) -> bool:
     return any(word in user_input.lower() for word in trigger_keywords)
 
@@ -110,76 +157,102 @@ def search_with_gemini(user_input: str, chat_memory: list) -> str:
         return "Please enter a valid question."
 
     try:
-        # Follow-up trigger responses from user
-        FOLLOW_UP_RESPONSES = [
-            "yes", "please explain", "go deeper", "elaborate", "sure", "of course", "continue",
-            "more info", "keep going", "i’m interested", "yes, please", "want to learn",
-            "do explain", "want to know more", "tell me more", "please do", "what else"
-        ]
+        safety_settings = {
+            "HARASSMENT": "BLOCK_NONE",
+            "HATE_SPEECH": "BLOCK_NONE",
+            "SEXUAL": "BLOCK_NONE",
+            "DANGEROUS": "BLOCK_NONE"
+        }
 
-        # Detect if the last Gemini response had a follow-up question
         last_bot_response = chat_memory[-1]["bot_response"].lower() if chat_memory else ""
         last_followup_asked = any(
-            fu.lower() in last_bot_response
+            followup_question.lower() in last_bot_response
             for questions in FOLLOW_UP_QUESTIONS.values()
-            for fu in questions
+            for followup_question in questions
         )
-
-        # Detect if user is replying with a follow-up intent
         user_followup_reply = any(resp in user_input.lower() for resp in FOLLOW_UP_RESPONSES)
 
-        # DuckDuckGo FIRST (if no deep question AND not a follow-up confirmation)
+        # Try DuckDuckGo first (only if not deep/follow-up)
         if not needs_deep_answer(user_input) and not (last_followup_asked and user_followup_reply):
-            response = search_duckduckgo(user_input)
-            if "dig deeper" not in response.lower():
+            ddg_response = search_duckduckgo(user_input)
+            
+            if ddg_response and not ddg_response.lower().startswith("i couldn't find a good answer"):
                 chat_memory.append({
                     "user_input": user_input,
-                    "bot_response": response
+                    "bot_response": ddg_response
                 })
                 if len(chat_memory) > MAX_MEMORY:
                     chat_memory.pop(0)
-                return response
+                return ddg_response
 
-        # Build memory context
-        context = ""
-        for exchange in chat_memory[-MAX_MEMORY:]:
-            context += f"User: {exchange['user_input']}\nAssistant: {exchange['bot_response']}\n"
-
-        # Detect intent for appropriate follow-up
+        is_follow_up = user_followup_reply or needs_deep_answer(user_input)
         intent = detect_intent(user_input)
-        is_follow_up = needs_deep_answer(user_input)
-        follow_up = random.choice(FOLLOW_UP_QUESTIONS.get(intent, [])) if FOLLOW_UP_QUESTIONS.get(intent) else ""
+        sentiment = detect_sentiment(user_input)
+        tone = get_tone(sentiment)
+        follow_up = random.choice(FOLLOW_UP_QUESTIONS.get(intent, [])) if not is_follow_up else ""
+        greeting = random.choice(GREETING_VARIANTS) if not chat_memory else ""
+        side_note = random.choice(SIDE_NOTES) if len(chat_memory) > 1 and not is_follow_up else ""
+        
+        context = "\n".join(
+            f"User: {msg['user_input']}\nAssistant: {msg['bot_response']}"
+            for msg in chat_memory[-MAX_MEMORY:]
+        )
 
-        # Prompt Gemini
-        # 4. Prompt Gemini with enhanced behavior
+        generation_config = {
+            "temperature": 0.7,
+            "top_p": 1,
+            "top_k": 1,
+            "max_output_tokens": 2048 if is_follow_up else 800,
+        }
+
         prompt = f"""
-You are a helpful, smart, and friendly assistant. Use a warm and conversational tone. Always respond with Markdown (**bold**, *italics*, `code`, lists, etc.).
+You are a friendly and knowledgeable assistant who acts like a smart, human-powered search engine. Think of yourself as a helpful guide — someone who explains concepts clearly, provides useful information quickly, and makes learning feel effortless.
 
-Conversation so far:
+Your job is to:
+- Provide trustworthy, accurate, and digestible information (like an informative book).
+- Sound approachable, curious, and slightly warm (not robotic).
+- Use Markdown formatting (**bold**, *italics*, bullet points, etc.) to improve clarity.
+- Anticipate what the user might want next, and gently offer follow-up help or suggestions.
+
+**Conversation Context**:
 {context}
 
-User just asked: {user_input}
+**Current User Question**:
+{user_input}
 
-Instructions:
-- {"This is a follow-up. Give a detailed, in-depth explanation with steps, examples, and technical clarity." if is_follow_up else "Give a concise but helpful answer first."}
-- Make the response natural, like a friendly guide.
-- Use Markdown formatting for clarity.
-- {"Don't ask follow-up again; the user already showed interest." if is_follow_up else f"End with: {follow_up}"}
+**Tone to use**: {tone}
+
+---
+
+Now generate a response using the following style:
+
+{f'''
+Start with a friendly greeting like: "{greeting}" (or something equally warm and welcoming).
+
+Give a brief, clear summary of the topic (2–3 sentences). Keep it informative, but easy to digest.
+
+Wrap up with a follow-up suggestion like: "{follow_up}" if it fits naturally into the flow.
+
+Add a light side comment if appropriate: "{side_note}".
+''' if not is_follow_up else '''
+This is a follow-up question.
+
+Now provide a more in-depth, structured explanation:
+- Use examples, analogies, or comparisons.
+- Build on prior information without repeating it.
+- Keep the tone friendly, expert, and easy to understand.
+'''}
 """
-
+        # --- Call Gemini ---
         response = model.generate_content(
             prompt,
-            generation_config={
-                "temperature": 0.7,
-                "top_p": 1,
-                "top_k": 1,
-                "max_output_tokens": 2048
-            }
+            generation_config=generation_config,
+            safety_settings=safety_settings
         )
 
         result = response.text.strip() if response and response.text else "Sorry, I couldn't find a good answer."
 
-        # Store in memory
+        # --- Update Chat Memory ---
         chat_memory.append({
             "user_input": user_input,
             "bot_response": result
