@@ -6,7 +6,7 @@ import requests
 
 load_dotenv()
 
-model = genai.GenerativeModel("gemini-1.5-pro-latest")  # or your preferred version
+model = genai.GenerativeModel("gemini-1.5-pro-latest")
 
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
@@ -39,7 +39,7 @@ GREETING_VARIANTS = [
     "Hi! What’s on your mind today?",
     "Hello! Ready to explore something new?",
     "Yo! Got a question for me?",
-    "Hey! Curious about something?"
+    "Hey! Curious about something?",
     "Hi there! What can I help you with?",
     "Welcome! What’s up?",
 ]
@@ -151,7 +151,7 @@ def search_duckduckgo(query: str) -> str:
 
 chat_memory = []
 
-MAX_MEMORY = 10
+MAX_MEMORY = 20
 def search_with_gemini(user_input: str, chat_memory: list) -> str:
     if not user_input.strip():
         return "Please enter a valid question."
@@ -193,16 +193,26 @@ def search_with_gemini(user_input: str, chat_memory: list) -> str:
         greeting = random.choice(GREETING_VARIANTS) if not chat_memory else ""
         side_note = random.choice(SIDE_NOTES) if len(chat_memory) > 1 and not is_follow_up else ""
         
-        context = "\n".join(
-            f"User: {msg['user_input']}\nAssistant: {msg['bot_response']}"
-            for msg in chat_memory[-MAX_MEMORY:]
-        )
-
+        # Updated context logic
+        if len(chat_memory) > 20:
+            summary_context = "\n".join(
+                f"User asked about {msg['user_input'][:30]}..." for msg in chat_memory[:-10]
+            )
+            recent_context = "\n".join(
+                f"User: {msg['user_input']}\nAssistant: {msg['bot_response']}"
+                for msg in chat_memory[-10:]
+            )
+            context = summary_context + "\n" + recent_context
+        else:
+            context = "\n".join(
+                f"User: {msg['user_input']}\nAssistant: {msg['bot_response']}"
+                for msg in chat_memory[-MAX_MEMORY:]
+            )
         generation_config = {
             "temperature": 0.7,
             "top_p": 1,
             "top_k": 1,
-            "max_output_tokens": 2048 if is_follow_up else 800,
+            "max_output_tokens": 2048 if is_follow_up else 400,
         }
 
         prompt = f"""
