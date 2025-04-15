@@ -98,6 +98,9 @@ input[type="text"] {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.9);
   font-size: 15px;
+  max-height: 100px;
+  overflow-y: auto;
+  resize: vertical;
 }
 
 input[type="text"]:focus {
@@ -161,27 +164,22 @@ button:hover {
     font-size: 13px;
   }
 }
-/* Add to the bottom of your CSS */
 
+/* Typing state + cursor */
+.typing .bubble {
+  animation: pulseGlow 1.2s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0% { box-shadow: 0 0 10px rgba(110, 195, 244, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(110, 195, 244, 0.4); }
+  100% { box-shadow: 0 0 10px rgba(110, 195, 244, 0.2); }
+}
+
+.typing em::after,
 .thinking .dots::after {
   content: '';
   display: inline-block;
-  animation: dots 1.2s steps(3, end) infinite;
-}
-
-@keyframes dots {
-  0% { content: ''; }
-  33% { content: '.'; }
-  66% { content: '..'; }
-  100% { content: '...'; }
-}
-/* Add at the end of your CSS */
-
-.typing em::after {
-  content: '';
-  display: inline-block;
-  width: 1em;
-  text-align: left;
   animation: dots 1.2s steps(3, end) infinite;
 }
 
@@ -195,6 +193,7 @@ button:hover {
 .cursor {
   display: inline-block;
   animation: blink 1s steps(1) infinite;
+  animation-delay: 0.5s;
   color: #aaa;
   margin-left: 2px;
 }
@@ -204,7 +203,7 @@ button:hover {
   51%, 100% { opacity: 0; }
 }
 
-/* Optional: style the bubble for glassmorphism if not already done */
+/* Optional: style bubble */
 .bubble {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(8px);
@@ -214,7 +213,102 @@ button:hover {
   margin: 6px 0;
   box-shadow: 0 4px 20px rgba(0,0,0,0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #000000; /* Light grey text for visibility */
+  color: #000000;
   max-width: 85%;
   word-wrap: break-word;
+}
+
+/* Markdown-style elements in chat */
+.bubble strong {
+  font-weight: bold;
+  color: #222;
+}
+
+.bubble em {
+  font-style: italic;
+  color: #555;
+}
+
+.bubble code {
+  background: #eee;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.95em;
+  color: #d63384;
+}
+
+/* Login Page Styles */
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(15px);
+  border-radius: 20px;
+  padding: 30px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  text-align: center;
+  max-width: 400px;
+  width: 100%;
+}
+
+.login-card h2 {
+  font-size: 2rem;
+  color: #fff;
+  margin-bottom: 20px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.login-card p {
+  color: #fff;
+  font-size: 1rem;
+  margin-bottom: 25px;
+}
+
+.login-button {
+  padding: 12px 25px;
+  font-size: 16px;
+  color: white;
+  background: #6ec3f4;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.3s ease;
+  text-decoration: none;
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+}
+
+.login-button:hover {
+  background: #4baeea;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.15);
+}
+
+.login-button:focus {
+  outline: none;
+}
+
+.login-card a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.login-card .login {
+  font-weight: bold;
+  color: #6ec3f4;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.login-card .login:hover {
+  color: #4baeea;
 }

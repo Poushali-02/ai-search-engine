@@ -243,9 +243,7 @@ Give a brief, clear summary of the topic (2–3 sentences). Keep it informative,
 
 Wrap up with a follow-up suggestion like: "{follow_up}" if it fits naturally into the flow.
 
-Add a light side comment if appropriate: "{side_note}".
-''' if not is_follow_up else '''
-This is a follow-up question.
+Add a light side comment if appropriate: "{side_note}"
 
 Now provide a more in-depth, structured explanation:
 - Use examples, analogies, or comparisons.

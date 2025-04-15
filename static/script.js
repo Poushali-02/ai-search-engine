@@ -86,3 +86,12 @@ document.getElementById("search-form").addEventListener("submit", async function
 
   scrollToBottom();
 });
+const loginButton = document.querySelector('.login-btn');
+if (loginButton) {
+  loginButton.addEventListener('click', function (e) {
+    e.preventDefault();
+    loginButton.innerText = "Redirecting...";
+    loginButton.disabled = true;
+    window.location.href = "/login";
+  });
+}
