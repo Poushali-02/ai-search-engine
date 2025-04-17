@@ -3,6 +3,13 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 import random
 import requests
+import sqlite3
+from datetime import datetime, timedelta
+import logging
+import shutil
+import tempfile
+
+logging.basicConfig(level=logging.DEBUG)
 
 load_dotenv()
 
@@ -13,6 +20,9 @@ if not api_key:
     raise ValueError("GEMINI_API_KEY not found in environment variables.")
 
 genai.configure(api_key=api_key)
+
+# Add a global toggle for history-based answers
+history_access_enabled = False  # Default is OFF
 
 # --- Sentiment & Tone Detection ---
 def detect_sentiment(text: str) -> str:
@@ -149,14 +159,144 @@ def search_duckduckgo(query: str) -> str:
     except Exception as e:
         return f"Error accessing DuckDuckGo: {str(e)}"
 
+def is_browser_history_query(query: str) -> bool:
+    if not history_access_enabled:
+        logging.debug("History access is disabled.")
+        return False
+    history_keywords = ["browser history", "visited sites", "recent tabs", "history", "my history", "what did I visit"]
+    is_query_history_related = any(keyword in query.lower() for keyword in history_keywords)
+    logging.debug(f"Is query history-related? {is_query_history_related}")
+    return is_query_history_related
+
+# Function to fetch Chrome browser history
+def fetch_brave_history():
+    # Path to Brave's history database
+    history_db = os.path.expanduser("C:/Users/Startup PC 2/AppData/Local/Google/Chrome/User Data/Default/History")
+    temp_db = tempfile.NamedTemporaryFile(delete=False).name  # Temporary copy of the database
+
+    try:
+        # Make a copy of the database to avoid locking issues
+        shutil.copy2(history_db, temp_db)
+
+        # Connect to the copied database
+        conn = sqlite3.connect(temp_db)
+        cursor = conn.cursor()
+
+        # Query to fetch the last 10 visited URLs
+        cursor.execute("""
+            SELECT url, title, last_visit_time
+            FROM urls
+            ORDER BY last_visit_time DESC
+            LIMIT 10
+        """)
+
+        results = cursor.fetchall()
+        conn.close()
+
+        # Format the results
+        history = []
+        for url, title, last_visit_time in results:
+            # Convert Brave's timestamp to a readable format
+            timestamp = datetime(1601, 1, 1) + timedelta(microseconds=last_visit_time)
+            history.append(f"{title} ({url}) - Last visited: {timestamp}")
+
+        return "\n".join(history)
+    except Exception as e:
+        logging.error(f"Error fetching browser history: {e}")
+        return f"Error fetching browser history: {e}"
+    finally:
+        # Clean up the temporary database copy
+        if os.path.exists(temp_db):
+            os.remove(temp_db)
+        logging.info("Temporary history data cleared securely.")
+
+# filepath: d:\ChatBot-Histroy-Annalyzer\search.py
+def fetch_edge_history():
+    """
+    Fetches the browsing history from Microsoft Edge's history database.
+    """
+    # Get the path to Edge's history database from environment variables
+    history_db = os.environ.get("EDGE_HISTORY_PATH")
+    if not history_db:
+        logging.error("EDGE_HISTORY_PATH is not set in environment variables.")
+        return "Error: Edge history path is not configured."
+
+    temp_db = tempfile.NamedTemporaryFile(delete=False).name  # Temporary copy of the database
+
+    try:
+        # Make a copy of the database to avoid locking issues
+        shutil.copy2(history_db, temp_db)
+
+        # Connect to the copied database
+        conn = sqlite3.connect(temp_db)
+        cursor = conn.cursor()
+
+        # Query to fetch the last 10 visited URLs
+        cursor.execute("""
+            SELECT url, title, last_visit_time
+            FROM urls
+            ORDER BY last_visit_time DESC
+            LIMIT 10
+        """)
+
+        results = cursor.fetchall()
+        conn.close()
+
+        # Format the results
+        history = []
+        for url, title, last_visit_time in results:
+            # Convert Edge's timestamp to a readable format
+            timestamp = datetime(1601, 1, 1) + timedelta(microseconds=last_visit_time)
+            history.append(f"{title} ({url}) - Last visited: {timestamp}")
+
+        return "\n".join(history)
+    except Exception as e:
+        logging.error(f"Error fetching browser history: {e}")
+        return f"Error fetching browser history: {e}"
+    finally:
+        # Clean up the temporary database copy
+        if os.path.exists(temp_db):
+            os.remove(temp_db)
+        logging.info("Temporary history data cleared securely.")
+
+def handle_privacy_checkpoint(user_input: str) -> str:
+    """
+    Handles the privacy checkpoint for history-based queries.
+    """
+    global history_access_enabled
+
+    if not history_access_enabled:
+        return (
+            "History access is disabled. Would you like to enable it?\n"
+            "Options:\n"
+            "1. Enable just for this session\n"
+            "2. Enable permanently\n"
+            "3. Ignore this query"
+        )
+    return None
+
 chat_memory = []
 
 MAX_MEMORY = 20
+
 def search_with_gemini(user_input: str, chat_memory: list) -> str:
+    # Check if the query is related to browser history
+    if is_browser_history_query(user_input):
+        # Handle privacy checkpoint
+        privacy_message = handle_privacy_checkpoint(user_input)
+        if privacy_message:
+            return privacy_message
+
+        # Fetch the browser history
+        history = fetch_brave_history()
+        return f"**Browser History:**\n{history}"  # Format the response
+
+    # Handle general queries
     if not user_input.strip():
         return "Please enter a valid question."
 
     try:
+        # Safety settings for the generative model
         safety_settings = {
             "HARASSMENT": "BLOCK_NONE",
             "HATE_SPEECH": "BLOCK_NONE",
@@ -164,6 +304,7 @@ def search_with_gemini(user_input: str, chat_memory: list) -> str:
             "DANGEROUS": "BLOCK_NONE"
         }
 
+        # Check for follow-up questions
         last_bot_response = chat_memory[-1]["bot_response"].lower() if chat_memory else ""
         last_followup_asked = any(
             followup_question.lower() in last_bot_response
@@ -172,10 +313,10 @@ def search_with_gemini(user_input: str, chat_memory: list) -> str:
         )
         user_followup_reply = any(resp in user_input.lower() for resp in FOLLOW_UP_RESPONSES)
 
-        # Try DuckDuckGo first (only if not deep/follow-up)
+        # Try DuckDuckGo for quick answers
         if not needs_deep_answer(user_input) and not (last_followup_asked and user_followup_reply):
             ddg_response = search_duckduckgo(user_input)
-            
+
             if ddg_response and not ddg_response.lower().startswith("i couldn't find a good answer"):
                 chat_memory.append({
                     "user_input": user_input,
@@ -185,6 +326,7 @@ def search_with_gemini(user_input: str, chat_memory: list) -> str:
                     chat_memory.pop(0)
                 return ddg_response
 
+        # Handle deep answers using the generative model
         is_follow_up = user_followup_reply or needs_deep_answer(user_input)
         intent = detect_intent(user_input)
         sentiment = detect_sentiment(user_input)
@@ -192,8 +334,8 @@ def search_with_gemini(user_input: str, chat_memory: list) -> str:
         follow_up = random.choice(FOLLOW_UP_QUESTIONS.get(intent, [])) if not is_follow_up else ""
         greeting = random.choice(GREETING_VARIANTS) if not chat_memory else ""
         side_note = random.choice(SIDE_NOTES) if len(chat_memory) > 1 and not is_follow_up else ""
-        
-        # Updated context logic
+
+        # Context logic for generative model
         if len(chat_memory) > 20:
             summary_context = "\n".join(
                 f"User asked about {msg['user_input'][:30]}..." for msg in chat_memory[:-10]
@@ -208,13 +350,8 @@ def search_with_gemini(user_input: str, chat_memory: list) -> str:
                 f"User: {msg['user_input']}\nAssistant: {msg['bot_response']}"
                 for msg in chat_memory[-MAX_MEMORY:]
             )
-        generation_config = {
-            "temperature": 0.7,
-            "top_p": 1,
-            "top_k": 1,
-            "max_output_tokens": 2048 if is_follow_up else 400,
-        }
 
+        # Prompt for the generative model
         prompt = f"""
 You are a friendly and knowledgeable assistant who acts like a smart, human-powered search engine. Think of yourself as a helpful guide — someone who explains concepts clearly, provides useful information quickly, and makes learning feel effortless.
 
@@ -253,16 +390,22 @@ Now provide a more in-depth, structured explanation:
 - Keep the tone friendly, expert, and easy to understand.
 '''}
 """
-        # --- Call Gemini ---
+
+        # Generate a response using the generative model
         response = model.generate_content(
             prompt,
-            generation_config=generation_config,
+            generation_config={
+                "temperature": 0.7,
+                "top_p": 1,
+                "top_k": 1,
+                "max_output_tokens": 2048 if is_follow_up else 400,
+            },
             safety_settings=safety_settings
         )
 
         result = response.text.strip() if response and response.text else "Sorry, I couldn't find a good answer."
 
-        # --- Update Chat Memory ---
+        # Update chat memory
         chat_memory.append({
             "user_input": user_input,
             "bot_response": result
