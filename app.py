@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify, session
 import os
 from dotenv import load_dotenv
-from search import search_with_gemini
+from search import search
 
 load_dotenv()
 
@@ -21,7 +21,7 @@ def ask():
         if not user_input:
             return jsonify({"error": "No input provided"}), 400
         chat_memory = session.get("chat_memory", [])
-        response = search_with_gemini(user_input, chat_memory)
+        response = search(user_input)
         chat_memory.append({"user_input": user_input, "bot_response": response})
         chat_memory = chat_memory[-20:]
         session["chat_memory"] = chat_memory

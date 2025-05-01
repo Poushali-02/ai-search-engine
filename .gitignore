@@ -1,2 +1,4 @@
 .env
 get_key.py
+venv
+__pycache__
