@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import sys
 import requests
 from bs4 import BeautifulSoup
+from github import users_gtihub
 
 load_dotenv()
 
@@ -14,7 +15,7 @@ if not api_key:
     sys.exit(1)
 
 genai.configure(api_key=api_key)
-
+print(f"api_keY {api_key}")
 def duckduckgo(query, max_results=3):
     url = "https://html.duckduckgo.com/html"
     params = {
@@ -41,9 +42,19 @@ def duckduckgo(query, max_results=3):
             break
     return results
 
-def search(input, user):
+git = users_gtihub()
+                
+def search(input, user, access_token):
     if not input:
         return "Please enter a valid input"
+    
+    tool_box = {
+        "user's github issue data" : git.get_issues_of_user(user, access_token),
+        "user's repositories" :  git.get_user_repo(user, access_token),
+        "user's opened pull reqeuests" : git.get_user_pr(user, access_token),
+        "search" : duckduckgo(input)
+    }
+    
     ddg_results = duckduckgo(input, 3)
     if not ddg_results:
         print("No search results found.")
@@ -58,6 +69,8 @@ def search(input, user):
             user asked this {input}.
             Answer concisely (3-6 lines) in plain text.
             Address them with their name {user} except the numbers, and answer.
+            You can use tools from {tool_box} to perform github or search work.
+            Address to them if you face any problem
         '''
     )
     try:

@@ -5,7 +5,7 @@ from search import search
 from authlib.integrations.flask_client import OAuth
 from datetime import timedelta
 from flask_sqlalchemy import SQLAlchemy
-from github import users_gtihub
+
 
 load_dotenv()
 
@@ -107,23 +107,8 @@ def ask():
 
         username = github_user.get('login')
         access_token = github_user.get('access_token')
-        git = users_gtihub()
-        
-        if "assigned issues" in user_input.lower() or "github" in user_input.lower():
-            issues = git.get_issues_of_user(username, access_token)
-            return jsonify({"response": f"Here are your tasks\n{issues}"})
-        
-        if "my repo" in user_input.lower() or "repository" in user_input.lower() or "github" in user_input.lower():
-            repos = git.get_user_repo(username, access_token)
-            repo_names = [repo['name'] for repo in repos]
-            return jsonify({"response": f"Here are your Repositories \n{repo_names}"})
-        
-        if "prs" in user_input.lower() or "pull requests" in user_input.lower() or "github" in user_input.lower():
-            prs = git.get_user_pr(username, access_token)
-            return jsonify({"response": f"\n{prs}"})
-        
         chat_memory = session.get("chat_memory", [])
-        response = search(user_input, github_user)
+        response = search(user_input, username, access_token)
         chat_memory.append({"user_input": user_input, "bot_response": response})
         chat_memory = chat_memory[-20:]
         session["chat_memory"] = chat_memory
