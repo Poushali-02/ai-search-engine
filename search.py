@@ -55,7 +55,6 @@ def search(input):
         f"{context}"
         f"Question: {input}\n"
         "Answer concisely (3-6 lines) in plain text. "
-        "Include one relevant link from the above results if helpful."
     )
     try:
         model = genai.GenerativeModel("gemini-1.5-pro-latest")
