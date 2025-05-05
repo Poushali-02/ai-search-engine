@@ -41,7 +41,7 @@ def duckduckgo(query, max_results=3):
             break
     return results
 
-def search(input):
+def search(input, user):
     if not input:
         return "Please enter a valid input"
     ddg_results = duckduckgo(input, 3)
@@ -52,9 +52,13 @@ def search(input):
     for title, snippet, url in ddg_results:
         context += f"Title: {title}\nSnippet: {snippet}\nLink: {url}\n\n"
     prompt = (
-        f"{context}"
-        f"Question: {input}\n"
-        "Answer concisely (3-6 lines) in plain text. "
+        f'''
+            You are the personalised AI assistant of {user};
+            You respond to there question on {context} in 3-6 lines concisely;
+            user asked this {input}.
+            Answer concisely (3-6 lines) in plain text.
+            Address them with their name {user} except the numbers, and answer.
+        '''
     )
     try:
         model = genai.GenerativeModel("gemini-1.5-pro-latest")
